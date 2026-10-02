@@ -271,7 +271,7 @@
       { heading: '상담 안내' },
       T('contact.title', '제목'),
       T('contact.desc', '안내 문구', { area: true }),
-      { heading: 'SNS 링크 (홈페이지에 아이콘으로 표시)' },
+      { heading: 'SNS 링크 (홈페이지 맨 아래에 아이콘으로 표시)' },
       T('contact.instagram', '인스타그램 주소', { placeholder: 'https://www.instagram.com/...' }),
       T('contact.icons.instagram', '인스타그램 로고 이미지 (선택)', { type: 'image' }),
       T('contact.blog', '네이버 블로그 주소', { placeholder: 'https://blog.naver.com/...' }),

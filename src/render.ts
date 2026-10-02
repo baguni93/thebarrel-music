@@ -33,22 +33,23 @@ function media(m: Media | null | undefined, autoPlay = false): string {
 
 // SNS 아이콘 (선 아이콘, 글자색을 따라감). 화면 낭독기에는 이름을 읽어 준다
 const SOCIAL_ICONS: Record<string, string> = {
+  phone: '<path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 6 6l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16.5 16.5 0 0 1 4.5 5.5a2 2 0 0 1 2-2z"/>',
+  mail: '<rect x="3" y="5.5" width="18" height="13" rx="1.5"/><path d="M3.5 6.5 12 13l8.5-6.5"/>',
   instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/>',
   blog: '<path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/><path d="M8 12h8M8 16h5"/>',
   kakao: '<path d="M12 4C7 4 3 7.1 3 11c0 2.5 1.6 4.6 4 5.9L6 21l4.3-2.9c.6.1 1.1.1 1.7.1 5 0 9-3.1 9-7s-4-7-9-7z"/>',
   youtube: '<rect x="2.5" y="5.5" width="19" height="13" rx="4"/><path d="M10 9.2v5.6l5-2.8z" fill="currentColor"/>',
 };
 
-function socialLink(href: string, key: keyof typeof SOCIAL_ICONS, label: string, image?: string) {
+function iconLink(href: string, key: keyof typeof SOCIAL_ICONS, label: string, image?: string, external = true) {
   const u = safeUrl(href);
   if (!u) return '';
+  const target = external ? ' target="_blank" rel="noopener noreferrer"' : '';
   const img = safeUrl(image);
-  if (img) {
-    return `<a class="social has-logo" href="${u}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">`
-      + `<img src="${img}" alt="" width="44" height="44"></a>`;
-  }
-  return `<a class="social" href="${u}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">`
-    + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SOCIAL_ICONS[key]}</svg></a>`;
+  const inner = img
+    ? `<img src="${img}" alt="" width="20" height="20">`
+    : `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SOCIAL_ICONS[key]}</svg>`;
+  return `<a class="icon-link" href="${u}"${target} aria-label="${esc(label)}" title="${esc(label)}">${inner}</a>`;
 }
 
 const KEYS = (() => {
@@ -136,12 +137,16 @@ export function renderHome(c: SiteContent, origin = '', opts: { preview?: boolea
   const ogImage = heroImg.startsWith('/') ? esc(origin) + heroImg : heroImg;
   const desc = esc(c.hero.lead.slice(0, 140));
 
-  const socials = [
-    socialLink(c.contact.instagram, 'instagram', '인스타그램', c.contact.icons?.instagram),
-    socialLink(c.contact.blog, 'blog', '네이버 블로그', c.contact.icons?.blog),
-    socialLink(c.contact.kakao, 'kakao', '카카오톡 채널', c.contact.icons?.kakao),
-    socialLink(c.contact.youtube, 'youtube', '유튜브', c.contact.icons?.youtube),
+  const icons = [
+    c.contact.phone ? iconLink(`tel:${tel}`, 'phone', `전화 ${c.contact.phone}`, undefined, false) : '',
+    c.contact.email ? iconLink(`mailto:${c.contact.email}`, 'mail', `메일 ${c.contact.email}`, undefined, false) : '',
+    iconLink(c.contact.instagram, 'instagram', '인스타그램', c.contact.icons?.instagram),
+    iconLink(c.contact.blog, 'blog', '네이버 블로그', c.contact.icons?.blog),
+    iconLink(c.contact.kakao, 'kakao', '카카오톡 채널', c.contact.icons?.kakao),
+    iconLink(c.contact.youtube, 'youtube', '유튜브', c.contact.icons?.youtube),
   ].join('');
+  const info = (pairs: [string, string][]) =>
+    pairs.filter(([, v]) => v).map(([k, v]) => `<span><em>${esc(k)}</em>${esc(v)}</span>`).join('');
 
   return `<!doctype html>
 <html lang="ko">
@@ -291,27 +296,22 @@ ${ogImage ? `<meta property="og:image" content="${ogImage}">` : ''}
   </section>
 </main>
 
-<div class="contact" id="contact">
+<section class="contact" id="contact">
   <div class="wrap contact-in">
-    <div>
-      <h2>${esc(c.contact.title)}</h2>
-      ${c.contact.desc ? `<p>${esc(c.contact.desc)}</p>` : ''}
-    </div>
-    <div class="contact-links">
-      <div class="chips">
-        ${c.contact.phone ? `<a class="chip" href="tel:${esc(tel)}">전화 ${esc(c.contact.phone)}</a>` : ''}
-        ${c.contact.email ? `<a class="chip" href="mailto:${esc(c.contact.email)}">메일 ${esc(c.contact.email)}</a>` : ''}
-      </div>
-      ${socials ? `<div class="socials">${socials}</div>` : ''}
-    </div>
+    <h2>${esc(c.contact.title)}</h2>
+    ${c.contact.desc ? `<p>${esc(c.contact.desc)}</p>` : ''}
+    ${tel ? `<a class="btn-line" href="tel:${esc(tel)}">${esc(c.hero.ctaLabel || '상담 문의하기')}</a>` : ''}
   </div>
-</div>
+</section>
 
 <footer class="site-footer">
-  <div class="wrap">
-    <p>상호: ${esc(c.brand.name)} | 대표: ${esc(c.business.owner)} | 전화: ${esc(c.contact.phone)} | 이메일: ${esc(c.contact.email)}</p>
-    <p>주소: ${esc(c.location.address)} | 사업자등록번호: ${esc(c.business.bizNo)}</p>
-    <p class="copy">© ${year} ${esc(c.brand.name)} · <a href="/admin/">관리자</a></p>
+  <div class="wrap foot">
+    <div class="foot-info">
+      <p>${info([['상호', c.brand.name], ['대표', c.business.owner], ['사업자등록번호', c.business.bizNo]])}</p>
+      <p>${info([['주소', c.location.address], ['전화', c.contact.phone], ['이메일', c.contact.email]])}</p>
+      <p class="copy">© ${year} ${esc(c.brand.nameEn || c.brand.name)}</p>
+    </div>
+    ${icons ? `<nav class="foot-icons" aria-label="연락처와 SNS">${icons}</nav>` : ''}
   </div>
 </footer>
 ${opts.preview ? PREVIEW_SCRIPT : ''}
