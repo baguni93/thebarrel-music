@@ -50,9 +50,41 @@ const MAP_SVG = `<svg viewBox="0 0 400 300" role="img" aria-label="약도">
 </svg>`;
 
 // 관리자 미리보기용: 파일 주소를 사이트 기준으로 풀고, 메뉴(#about 등)는 미리보기 안에서만 스크롤되게 한다
-const PREVIEW_SCRIPT = `<script>
+// 관리자 미리보기용 스크립트
+// - 링크를 눌러도 다른 페이지로 가지 않고, 메뉴(#about 등)는 미리보기 안에서만 스크롤
+// - 관리자 화면과 메시지를 주고받아 스크롤 위치를 유지하고, 지금 편집 중인 탭에 해당하는 부분만 보여 준다
+const PREVIEW_SCRIPT = `<style>
+.pv-hidden{display:none!important}
+.pv-empty{max-width:560px;margin:64px auto;padding:24px;border:1px dashed var(--line);color:var(--muted);text-align:center;font-size:14px}
+</style>
+<script>
 (function () {
   var post = function (m) { try { parent.postMessage(m, '*'); } catch (e) {} };
+  // 화면 조각: 상단, 메인, 학원소개, 공간, 영상, 수강료, 위치, 상담 연락처, 하단
+  var parts = {
+    header: document.querySelector('.site-header'), home: document.getElementById('home'),
+    about: document.getElementById('about'), space: document.getElementById('space'), video: document.getElementById('video'),
+    price: document.getElementById('price'), map: document.getElementById('map'),
+    contact: document.getElementById('contact'), footer: document.querySelector('.site-footer')
+  };
+  var empty = document.createElement('p');
+  empty.className = 'pv-empty pv-hidden';
+  document.body.appendChild(empty);
+
+  function focus(keys, emptyText) {
+    var shown = 0;
+    Object.keys(parts).forEach(function (k) {
+      var el = parts[k];
+      if (!el) return;
+      var on = !keys || keys.indexOf(k) !== -1;
+      el.classList.toggle('pv-hidden', !on);
+      if (on) shown++;
+    });
+    var nothing = keys && !keys.some(function (k) { return parts[k]; });
+    empty.textContent = emptyText || '';
+    empty.classList.toggle('pv-hidden', !nothing);
+  }
+
   document.addEventListener('click', function (e) {
     var a = e.target.closest && e.target.closest('a');
     if (!a) return;
@@ -65,8 +97,13 @@ const PREVIEW_SCRIPT = `<script>
   addEventListener('message', function (e) {
     var d = e.data || {};
     if (d.type === 'pv-scroll') scrollTo(0, d.y || 0);
+    if (d.type === 'pv-focus') { focus(d.keys, d.empty); scrollTo(0, 0); }
     if (d.type === 'pv-goto') { var el = document.getElementById(d.id); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
   });
+  // 처음 그릴 때부터 관리자 화면이 정해 준 상태로 시작 (깜빡임 방지)
+  var init = window.PV_INIT || {};
+  if (init.keys) focus(init.keys, init.empty);
+  if (init.y) scrollTo(0, init.y);
   post({ type: 'pv-ready' });
 })();
 </script>`;
