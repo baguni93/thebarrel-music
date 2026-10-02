@@ -84,6 +84,16 @@ async function serveMedia(request: Request, env: Env, key: string) {
   return new Response(request.method === 'HEAD' ? null : obj.body, { headers });
 }
 
+async function readBody(request: Request): Promise<SiteContent | Response> {
+  const text = await request.text();
+  if (text.length > 1_000_000) return json({ error: '내용이 너무 큽니다.' }, 413);
+  try {
+    return withDefaults(JSON.parse(text));
+  } catch {
+    return json({ error: '내용 형식이 올바르지 않습니다.' }, 400);
+  }
+}
+
 async function handleApi(request: Request, env: Env, url: URL) {
   const secure = url.protocol === 'https:';
   const path = url.pathname;
@@ -115,13 +125,19 @@ async function handleApi(request: Request, env: Env, url: URL) {
   if (path === '/api/content' && request.method === 'GET') return json(await readContent(env));
 
   if (path === '/api/content' && request.method === 'PUT') {
-    const text = await request.text();
-    if (text.length > 1_000_000) return json({ error: '내용이 너무 큽니다.' }, 413);
-    let data: unknown;
-    try { data = JSON.parse(text); } catch { return json({ error: '내용 형식이 올바르지 않습니다.' }, 400); }
-    const content = withDefaults(data);
+    const content = await readBody(request);
+    if (content instanceof Response) return content;
     await publish(env, content, url.origin);
     return json({ ok: true });
+  }
+
+  // 저장하지 않고 화면만 만들어 돌려준다 (관리자 미리보기)
+  if (path === '/api/preview' && request.method === 'POST') {
+    const content = await readBody(request);
+    if (content instanceof Response) return content;
+    return new Response(renderHome(content, url.origin, { preview: true }), {
+      headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+    });
   }
 
   if (path === '/api/upload' && request.method === 'POST') {
