@@ -1,23 +1,16 @@
 {
   "name": "thebarrel-music",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "^2.47.10",
-    "next": "^15.5.27",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "typescript": "^5.7.0"
+    "@cloudflare/workers-types": "^5.20261002.1",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.146.0"
   }
 }
