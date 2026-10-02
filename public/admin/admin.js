@@ -268,10 +268,16 @@
     { id: 'basic', name: '기본 정보', fields: [
       { row: [T('brand.name', '학원 이름'), T('brand.nameEn', '영문 이름')] },
       { row: [T('contact.phone', '전화번호'), T('contact.email', '이메일')] },
+      { heading: '상담 안내' },
+      T('contact.title', '제목'),
+      T('contact.desc', '안내 문구', { area: true }),
+      { heading: 'SNS 링크 (홈페이지에 아이콘으로 표시)' },
       T('contact.instagram', '인스타그램 주소', { placeholder: 'https://www.instagram.com/...' }),
-      T('contact.blog', '블로그 주소', { placeholder: 'https://blog.naver.com/...' }),
+      T('contact.blog', '네이버 블로그 주소', { placeholder: 'https://blog.naver.com/...' }),
       T('contact.kakao', '카카오톡 채널 주소', { placeholder: 'https://pf.kakao.com/...' }),
-      { hint: '비워 둔 링크는 홈페이지에 표시되지 않습니다.' },
+      T('contact.youtube', '유튜브 채널 주소', { placeholder: 'https://www.youtube.com/@...' }),
+      { hint: '비워 둔 링크는 아이콘이 나오지 않습니다. 개별 영상은 ‘영상’ 탭에 넣어 주세요.' },
+      { heading: '사업자 정보' },
       { row: [T('business.owner', '대표자'), T('business.bizNo', '사업자등록번호')] },
     ] },
     { id: 'hero', name: '메인', fields: [
