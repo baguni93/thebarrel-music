@@ -1,32 +1,21 @@
-// 홈페이지에 표시되는 모든 내용. 관리자 페이지에서 이 구조 그대로 편집해 DB(site_content)에 저장한다.
+// 홈페이지에 표시되는 모든 내용. 관리자 화면에서 이 구조 그대로 편집해 R2의 content.json 으로 저장한다.
 
 export type MediaType = 'image' | 'video' | 'youtube';
-
-export type Media = {
-  type: MediaType;
-  url: string; // 이미지/영상 파일 URL 또는 유튜브 주소
-  alt?: string;
-};
+export type Media = { type: MediaType; url: string; alt?: string };
 
 export type Fact = { label: string; value: string };
 export type ClassItem = { tag: string; title: string; desc: string; image?: string };
 export type GalleryItem = { title: string; caption: string; media: Media };
-export type VideoItem = { title: string; url: string }; // 유튜브 주소
+export type VideoItem = { title: string; url: string };
 export type PriceItem = { name: string; detail: string; note: string; price: string };
 
 export type SiteContent = {
   brand: { name: string; nameEn: string };
-  hero: {
-    eyebrow: string;
-    title: string;
-    lead: string;
-    ctaLabel: string;
-    media: Media | null; // 메인 대표 이미지·배경 영상·유튜브
-  };
+  hero: { eyebrow: string; title: string; lead: string; ctaLabel: string; media: Media | null };
   about: { paragraphs: string[]; facts: Fact[]; image?: string };
   classes: ClassItem[];
-  gallery: GalleryItem[]; // 공간
-  videos: VideoItem[]; // 영상 섹션 (연주 영상 등)
+  gallery: GalleryItem[];
+  videos: VideoItem[];
   prices: PriceItem[];
   priceNotes: string[];
   location: {
@@ -34,16 +23,10 @@ export type SiteContent = {
     transit: string[];
     parking: string;
     hours: string;
-    mapUrl: string; // 네이버/카카오 지도 링크
-    mapImage?: string; // 약도 이미지 (선택)
+    mapUrl: string;
+    mapImage?: string;
   };
-  contact: {
-    phone: string;
-    email: string;
-    instagram: string;
-    blog: string;
-    kakao: string;
-  };
+  contact: { phone: string; email: string; instagram: string; blog: string; kakao: string };
   business: { owner: string; bizNo: string };
 };
 
@@ -89,37 +72,34 @@ export const defaultContent: SiteContent = {
     hours: '평일 10:00–22:00 · 토요일 10:00–18:00 · 일요일 휴무',
     mapUrl: 'https://map.naver.com',
   },
-  contact: {
-    phone: '010-0000-0000',
-    email: 'hello@thebarrel.kr',
-    instagram: '',
-    blog: '',
-    kakao: '',
-  },
+  contact: { phone: '010-0000-0000', email: 'hello@thebarrel.kr', instagram: '', blog: '', kakao: '' },
   business: { owner: '○○○', bizNo: '000-00-00000' },
 };
 
-/** DB에 저장된 값이 일부 비어 있어도 화면이 깨지지 않도록 기본값과 합친다 */
+const str = (v: unknown, d = ''): string => (typeof v === 'string' ? v : d);
+const arr = <T>(v: unknown, d: T[]): T[] => (Array.isArray(v) ? (v as T[]) : d);
+const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+
+/** 저장된 값이 일부 비어 있거나 모양이 틀려도 화면이 깨지지 않도록 기본값과 합친다 */
 export function withDefaults(raw: unknown): SiteContent {
-  const c = (raw && typeof raw === 'object' ? raw : {}) as Partial<SiteContent>;
+  const c = obj(raw) as Partial<SiteContent>;
   const d = defaultContent;
   return {
-    brand: { ...d.brand, ...c.brand },
-    hero: { ...d.hero, ...c.hero },
-    about: { ...d.about, ...c.about },
-    classes: c.classes ?? d.classes,
-    gallery: c.gallery ?? d.gallery,
-    videos: c.videos ?? d.videos,
-    prices: c.prices ?? d.prices,
-    priceNotes: c.priceNotes ?? d.priceNotes,
-    location: { ...d.location, ...c.location },
-    contact: { ...d.contact, ...c.contact },
-    business: { ...d.business, ...c.business },
+    brand: { ...d.brand, ...obj(c.brand) },
+    hero: { ...d.hero, ...obj(c.hero) } as SiteContent['hero'],
+    about: { ...d.about, ...obj(c.about) } as SiteContent['about'],
+    classes: arr(c.classes, d.classes),
+    gallery: arr(c.gallery, d.gallery),
+    videos: arr(c.videos, d.videos),
+    prices: arr(c.prices, d.prices),
+    priceNotes: arr(c.priceNotes, d.priceNotes),
+    location: { ...d.location, ...obj(c.location) } as SiteContent['location'],
+    contact: { ...d.contact, ...obj(c.contact) },
+    business: { ...d.business, ...obj(c.business) },
   };
 }
 
-/** 유튜브 주소(watch, youtu.be, shorts, embed)에서 영상 ID 추출 */
 export function youtubeId(url: string): string | null {
-  const m = url.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})/);
+  const m = str(url).match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})/);
   return m ? m[1] : null;
 }

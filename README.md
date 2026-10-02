@@ -1,46 +1,71 @@
 # 더베럴 뮤직 홈페이지
 
-공개 홈페이지(`/`)와 관리자 페이지(`/admin`)로 구성된 Next.js 사이트입니다.
-내용·이미지·영상은 Supabase에 저장되고, 관리자 페이지에서 **저장하기**를 누르면 홈페이지에 바로 반영됩니다.
+Cloudflare 무료 플랜 하나로 운영하는 학원 홈페이지입니다.
+
+- 공개 홈페이지: `/`
+- 관리자 페이지: `/admin` (비밀번호 로그인)
+
+## 구조
+
+| 역할 | 담당 |
+|---|---|
+| 홈페이지·관리자 API | Cloudflare Worker (`src/`) |
+| 스타일·관리자 화면 | 정적 파일 (`public/`), Worker를 거치지 않고 바로 전달 |
+| 사진·영상·홈페이지 내용 | Cloudflare R2 버킷 `thebarrel-media` |
+| 관리자 로그인 | Worker Secret `ADMIN_PASSWORD` |
+
+**홈페이지는 미리 만들어 둡니다.** 관리자에서 **저장하기**를 누르면 그때 한 번 홈페이지 HTML을 만들어 R2에 보관하고, 방문자에게는 그 완성본을 그대로 보냅니다. 방문할 때마다 계산하지 않아서 무료 플랜의 CPU 제한(요청당 10ms)에 걸리지 않습니다.
+
+R2 안의 파일:
+
+- `content.json`: 관리자에서 저장한 내용
+- `site/index.html`: 미리 만들어 둔 홈페이지
+- `media/YYYY-MM/…`: 올린 사진·영상
+- `history/…json`: 저장할 때마다 남는 직전 내용 백업. 실수로 지웠을 때 여기서 되살릴 수 있습니다.
 
 ## 관리자 페이지에서 바꿀 수 있는 것
 
 | 탭 | 내용 |
 |---|---|
 | 기본 정보 | 학원 이름, 전화·메일, 인스타그램·블로그·카카오 채널, 사업자 정보 |
-| 메인 | 큰 제목, 소개 문구, 버튼 문구, **대표 이미지 / 배경 영상(mp4) / 유튜브** |
-| 학원소개 | 소개 글·사진, 요약 정보, 수업 과정(과정별 사진 포함) |
+| 메인 | 큰 제목, 소개 문구, 버튼 문구, 대표 이미지 / 배경 영상(mp4) / 유튜브 |
+| 학원소개 | 소개 글·사진, 요약 정보, 수업 과정(과정별 사진) |
 | 공간 사진 | 공간별 사진·영상 추가, 순서 변경, 삭제 |
-| 영상 | 유튜브 링크 목록 (넣으면 홈페이지에 '영상' 메뉴가 생김) |
+| 영상 | 유튜브 링크 목록 (넣으면 '영상' 메뉴가 생김) |
 | 수강료 | 수강료 표, 하단 안내 문구 |
 | 위치 | 주소, 교통, 주차, 운영 시간, 지도 링크, 약도 이미지 |
 
-## 처음 설정 (약 15분)
+사진은 올릴 때 브라우저에서 긴 변 2000px로 자동으로 줄여서 저장합니다. 영상 파일은 50MB까지 올릴 수 있지만, 긴 영상은 유튜브 링크를 권장합니다.
 
-### 1. Supabase 준비
-1. https://supabase.com 에서 새 프로젝트 생성 (무료 플랜 가능, 지역은 Seoul 권장)
-2. **SQL Editor**에서 `supabase/schema.sql` 내용을 붙여넣고 Run
-3. **Authentication > Users > Add user**로 관리자 계정(이메일·비밀번호) 생성
-4. **Authentication > Sign In / Providers**에서 *Allow new users to sign up* 끄기
-   → 다른 사람이 가입해서 관리자 페이지에 들어오는 것을 막습니다.
-5. **Project Settings > API**에서 `Project URL`과 `anon public` 키 복사
+## 처음 설정
 
-### 2. 로컬 실행
+### 1. R2 버킷 만들기
+1. Cloudflare 대시보드 › **R2 Object Storage** › 시작하기
+   - 결제수단 등록을 요구할 수 있지만, 무료 한도 안에서는 청구되지 않습니다.
+2. **Create bucket** › 이름: `thebarrel-media` (위치는 Automatic)
+
+### 2. Worker 배포 (GitHub 연결)
+1. **Workers & Pages** › **Create** › **Import a repository** › `baguni93/thebarrel-music`
+2. 빌드 설정은 기본값 그대로 두면 됩니다. 배포 명령은 `npx wrangler deploy`입니다.
+3. 배포가 끝나면 Worker › **Settings** › **Variables and Secrets** › **Add**
+   - Type: **Secret**, Name: `ADMIN_PASSWORD`, Value: 관리자 비밀번호
+   - 다른 사람이 추측하기 어려운 12자 이상을 권장합니다. 이 비밀번호 하나로 관리자에 들어갑니다.
+4. `https://thebarrel-music.<계정>.workers.dev/admin`에서 로그인해 확인합니다.
+
+이후에는 `main`에 머지할 때마다 자동으로 다시 배포됩니다.
+
+### 3. 도메인 연결
+1. Cloudflare › **Add a domain** › 학원 도메인 입력
+2. 안내되는 네임서버 2개를 도메인 산 곳(가비아 등) 관리 화면에 입력
+3. Worker › Settings › **Domains & Routes** › **Custom domain** 추가
+
+## 내 컴퓨터에서 실행
 ```bash
-cp .env.example .env.local   # 복사한 URL과 키 붙여넣기
 npm install
-npm run dev
+cp .dev.vars.example .dev.vars   # 로컬용 관리자 비밀번호
+npm run dev                       # http://localhost:8787
 ```
-- 홈페이지: http://localhost:3000
-- 관리자: http://localhost:3000/admin
+로컬에서는 R2 대신 컴퓨터 안의 임시 저장소(`.wrangler/`)를 씁니다.
 
-### 3. 배포 (Vercel)
-1. 이 폴더를 GitHub 저장소에 올리기
-2. https://vercel.com 에서 저장소 Import
-3. Environment Variables에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` 입력 후 Deploy
-4. 학원 도메인(예: thebarrel.kr)을 Vercel > Domains에서 연결
-
-## 참고
-- 영상 파일은 Supabase 무료 플랜 기준 한 파일 50MB까지 올라갑니다. 긴 연주 영상은 유튜브에 올리고 링크로 넣는 편이 빠르고 비용도 들지 않습니다.
-- 메인 대표 영상은 소리 없이 자동 반복 재생됩니다(브라우저 정책상 소리 있는 자동재생은 막혀 있음).
-- 처음에는 DB가 비어 있어 `lib/content.ts`의 기본 문구가 보입니다. 관리자에서 한 번 저장하면 그때부터 DB 내용이 쓰입니다.
+## 비밀번호를 바꾸려면
+Worker › Settings › Variables and Secrets에서 `ADMIN_PASSWORD` 값을 바꾸면 됩니다. 바꾸는 즉시 기존 로그인은 모두 풀립니다.
