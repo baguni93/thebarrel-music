@@ -17,5 +17,8 @@
     { "binding": "BUCKET", "bucket_name": "thebarrel-media" }
   ],
 
+  // 배포 버전 id: 새로 배포되면 미리 만든 홈페이지를 자동으로 다시 만들 때 쓴다
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+
   "observability": { "enabled": true }
 }
