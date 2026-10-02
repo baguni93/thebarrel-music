@@ -51,13 +51,24 @@ const MAP_SVG = `<svg viewBox="0 0 400 300" role="img" aria-label="약도">
 
 // 관리자 미리보기용: 파일 주소를 사이트 기준으로 풀고, 메뉴(#about 등)는 미리보기 안에서만 스크롤되게 한다
 const PREVIEW_SCRIPT = `<script>
-document.addEventListener('click', function (e) {
-  var a = e.target.closest && e.target.closest('a');
-  if (!a) return;
-  e.preventDefault();
-  var h = a.getAttribute('href') || '';
-  if (h.charAt(0) === '#') { var el = document.getElementById(h.slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
-});
+(function () {
+  var post = function (m) { try { parent.postMessage(m, '*'); } catch (e) {} };
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a');
+    if (!a) return;
+    e.preventDefault();
+    var h = a.getAttribute('href') || '';
+    if (h.charAt(0) === '#') { var el = document.getElementById(h.slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
+  });
+  var t = null;
+  addEventListener('scroll', function () { clearTimeout(t); t = setTimeout(function () { post({ type: 'pv-scrolled', y: scrollY }); }, 100); });
+  addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type === 'pv-scroll') scrollTo(0, d.y || 0);
+    if (d.type === 'pv-goto') { var el = document.getElementById(d.id); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
+  });
+  post({ type: 'pv-ready' });
+})();
 </script>`;
 
 export function renderHome(c: SiteContent, origin = '', opts: { preview?: boolean } = {}): string {

@@ -88,6 +88,7 @@
     setStatus('저장하지 않은 변경 사항이 있습니다.');
     var btn = document.getElementById('save-btn');
     if (btn) btn.disabled = false;
+    schedulePreview();
   }
   function setStatus(text, err) {
     var el = document.getElementById('save-status');
@@ -365,13 +366,13 @@
       Array.prototype.forEach.call(tabs.children, function (b) { b.setAttribute('aria-selected', String(b.dataset.id === state.tab)); });
     }
     TABS.forEach(function (t) {
-      var b = h('button', { type: 'button', role: 'tab', text: t.name, onclick: function () { state.tab = t.id; drawTab(); } });
+      var b = h('button', { type: 'button', role: 'tab', text: t.name, onclick: function () { state.tab = t.id; drawTab(); gotoSection(t.id); } });
       b.dataset.id = t.id;
       tabs.appendChild(b);
     });
 
     var saveBtn = h('button', { id: 'save-btn', type: 'button', className: 'btn primary', text: '저장하기', disabled: !state.dirty, onclick: save });
-    app.appendChild(h('div', { className: 'admin' }, [
+    var editor = h('div', { className: 'admin' }, [
       h('div', { className: 'admin-top' }, [
         h('h1', { text: (c.brand.name || '더베럴 뮤직') + ' 관리자' }),
         h('div', { className: 'actions' }, [
@@ -382,58 +383,127 @@
         ]),
       ]),
       tabs, panel,
-      h('div', { className: 'savebar' }, [h('span', { id: 'save-status', className: 'status' }),
-        h('button', { id: 'preview-btn', type: 'button', className: 'btn', text: '미리보기', onclick: openPreview }), saveBtn]),
-    ]));
+    ]);
+    app.appendChild(h('div', { className: 'admin-split' }, [editor, buildPreviewPane()]));
+    app.appendChild(h('div', { className: 'savebar' }, [h('span', { id: 'save-status', className: 'status' }),
+      h('button', { id: 'preview-btn', type: 'button', className: 'btn pv-open-btn', text: '미리보기', onclick: openPreview }), saveBtn]));
+    refreshPreview();
     drawTab();
   }
 
 
-  /* ───── 미리보기: 저장하지 않고 지금 고친 내용으로 홈페이지를 보여 준다 ───── */
-  var previewEl = null;
-  function closePreview() {
-    if (!previewEl) return;
-    previewEl.remove(); previewEl = null;
-    document.body.style.overflow = '';
-    var btn = document.getElementById('preview-btn');
-    if (btn) btn.focus();
+  /* ───── 미리보기 패널: 고칠 때마다 옆에서 자동으로 바뀐다 ───── */
+  // 넓은 화면에서는 편집 칸 오른쪽에 늘 떠 있고, 좁은 화면에서는 '미리보기' 버튼으로 전체 화면으로 연다.
+  var DEVICES = { desktop: 1280, mobile: 390 };
+  var TAB_SECTION = { basic: 'contact', hero: 'home', about: 'about', space: 'space', video: 'video', price: 'price', map: 'map' };
+  var pv = { el: null, viewport: null, frame: null, device: 'desktop', scrollY: 0, timer: null, seq: 0, status: null };
+
+  function layoutFrame(frame) {
+    if (!frame || !pv.viewport) return;
+    var vw = pv.viewport.clientWidth, vh = pv.viewport.clientHeight;
+    var dw = DEVICES[pv.device];
+    var scale = Math.min(1, vw / dw);
+    frame.style.width = dw + 'px';
+    frame.style.height = Math.max(200, vh / scale) + 'px';
+    frame.style.transform = 'scale(' + scale + ')';
+    frame.style.left = Math.max(0, (vw - dw * scale) / 2) + 'px';
   }
-  function openPreview() {
-    closePreview();
-    var frame = h('iframe', { title: '홈페이지 미리보기', sandbox: 'allow-scripts allow-popups' });
-    var stage = h('div', { className: 'pv-stage' }, [h('div', { className: 'pv-device', id: 'pv-device' }, [frame])]);
-    var status = h('span', { className: 'status', text: '화면을 만드는 중…' });
+
+  function layoutAll() {
+    if (pv.viewport) Array.prototype.forEach.call(pv.viewport.querySelectorAll('iframe'), layoutFrame);
+  }
+
+  /** 새 화면이 준비되면 보던 위치로 맞추고 이전 화면을 치운다 */
+  function showFrame(frame) {
+    if (!frame.parentNode || pv.frame === frame) return;
+    frame.contentWindow.postMessage({ type: 'pv-scroll', y: pv.scrollY }, '*');
+    Array.prototype.forEach.call(pv.viewport.querySelectorAll('iframe'), function (f) { if (f !== frame) f.remove(); });
+    frame.classList.remove('loading');
+    pv.frame = frame;
+    pv.status.textContent = '';
+  }
+
+  function buildPreviewPane() {
+    pv.status = h('span', { className: 'status' });
     var sizeBtn = function (label, mode) {
-      return h('button', { type: 'button', className: 'mini', 'aria-pressed': String(mode === 'desktop'), text: label, onclick: function (e) {
-        document.getElementById('pv-device').className = 'pv-device' + (mode === 'mobile' ? ' mobile' : '');
+      return h('button', { type: 'button', className: 'mini', 'aria-pressed': String(pv.device === mode), text: label, onclick: function (e) {
+        pv.device = mode;
         Array.prototype.forEach.call(e.target.parentNode.children, function (b) { b.setAttribute('aria-pressed', String(b === e.target)); });
+        layoutAll();
       } });
     };
-    var saveFromPreview = h('button', { type: 'button', className: 'btn primary', text: '이대로 저장하기', disabled: !state.dirty,
-      onclick: function () { closePreview(); save(); } });
-    previewEl = h('div', { className: 'pv', role: 'dialog', 'aria-modal': 'true', 'aria-label': '홈페이지 미리보기' }, [
+    pv.viewport = h('div', { className: 'pv-viewport' });
+    pv.el = h('aside', { className: 'pv-pane', 'aria-label': '홈페이지 미리보기' }, [
       h('div', { className: 'pv-bar' }, [
         h('b', { text: '미리보기' }),
-        h('span', { className: 'hint', text: state.dirty ? '아직 저장 전 내용입니다. 홈페이지에는 저장해야 반영돼요.' : '현재 홈페이지와 같은 내용입니다.' }),
         h('div', { className: 'pv-sizes' }, [sizeBtn('PC', 'desktop'), sizeBtn('모바일', 'mobile')]),
-        h('div', { className: 'pv-actions' }, [
-          status,
-          h('button', { type: 'button', className: 'mini', text: '닫기', onclick: closePreview }),
-          saveFromPreview,
-        ]),
+        pv.status,
+        h('button', { type: 'button', className: 'mini pv-close', text: '닫기', onclick: closePreview }),
       ]),
-      stage,
+      pv.viewport,
     ]);
-    document.body.appendChild(previewEl);
-    document.body.style.overflow = 'hidden';
+    if (window.ResizeObserver) new ResizeObserver(layoutAll).observe(pv.viewport);
+    return pv.el;
+  }
+
+  /** 지금 내용으로 미리보기를 새로 만든다. 새 화면이 다 그려지면 그때 바꿔 끼워서 깜빡이지 않게 한다 */
+  function refreshPreview() {
+    if (!pv.viewport) return;
+    var my = ++pv.seq;
+    pv.status.className = 'status'; pv.status.textContent = '반영 중…';
     fetch('/api/preview', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(state.content) })
       .then(function (res) {
-        if (res.status === 401) throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+        if (res.status === 401) throw new Error('로그인이 만료되었습니다.');
         if (!res.ok) throw new Error('미리보기를 만들지 못했습니다.');
         return res.text();
       })
-      .then(function (html) { frame.srcdoc = html; status.textContent = ''; })
-      .catch(function (e) { status.className = 'status err'; status.textContent = e.message; });
+      .then(function (html) {
+        if (my !== pv.seq) return; // 그사이 더 새로운 요청이 있으면 버린다
+        var next = h('iframe', { title: '홈페이지 미리보기', sandbox: 'allow-scripts allow-popups', className: 'pv-frame loading' });
+        next.addEventListener('load', function () { setTimeout(function () { showFrame(next); }, 300); }); // 안쪽 신호가 안 와도 보이게
+        next.srcdoc = html;
+        pv.viewport.appendChild(next);
+        layoutFrame(next);
+      })
+      .catch(function (e) { if (my === pv.seq) { pv.status.className = 'status err'; pv.status.textContent = e.message; } });
+  }
+
+  function schedulePreview() {
+    clearTimeout(pv.timer);
+    pv.timer = setTimeout(refreshPreview, 600);
+  }
+
+  function gotoSection(tabId) {
+    var id = TAB_SECTION[tabId];
+    if (pv.frame && id) pv.frame.contentWindow.postMessage({ type: 'pv-goto', id: id }, '*');
+  }
+
+  window.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (!pv.viewport) return;
+    var frames = pv.viewport.querySelectorAll('iframe');
+    var from = null;
+    Array.prototype.forEach.call(frames, function (f) { if (f.contentWindow === e.source) from = f; });
+    if (!from) return;
+    if (d.type === 'pv-ready') {
+      showFrame(from);
+    } else if (d.type === 'pv-scrolled' && from === pv.frame) {
+      pv.scrollY = d.y || 0;
+    }
+  });
+
+  function openPreview() {
+    if (!pv.el) return;
+    pv.el.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    layoutAll();
+  }
+  function closePreview() {
+    if (!pv.el || !pv.el.classList.contains('open')) return;
+    pv.el.classList.remove('open');
+    document.body.style.overflow = '';
+    var btn = document.getElementById('preview-btn');
+    if (btn) btn.focus();
   }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePreview(); });
 
