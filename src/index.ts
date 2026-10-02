@@ -6,6 +6,17 @@ export interface Env {
   BUCKET: R2Bucket;
   ASSETS: Fetcher;
   ADMIN_PASSWORD?: string;
+  CF_VERSION_METADATA?: WorkerVersionMetadata; // 배포할 때마다 바뀌는 버전 id
+}
+
+/** 미리 만든 홈페이지가 어느 배포 버전으로 만들어졌는지 기록해 두고, 새로 배포되면 다시 만든다 */
+const deployVersion = (env: Env) => env.CF_VERSION_METADATA?.id ?? 'dev';
+
+async function putHome(env: Env, html: string) {
+  await env.BUCKET.put(HOME_KEY, html, {
+    httpMetadata: { contentType: 'text/html; charset=utf-8' },
+    customMetadata: { v: deployVersion(env) },
+  });
 }
 
 // R2 안의 파일 이름
@@ -38,17 +49,15 @@ async function publish(env: Env, content: SiteContent, origin: string) {
     });
   }
   await env.BUCKET.put(CONTENT_KEY, JSON.stringify(content), { httpMetadata: { contentType: 'application/json' } });
-  await env.BUCKET.put(HOME_KEY, renderHome(content, origin), {
-    httpMetadata: { contentType: 'text/html; charset=utf-8' },
-  });
+  await putHome(env, renderHome(content, origin));
 }
 
-/** 홈페이지: 미리 만들어 둔 HTML을 그대로 보낸다. 아직 없으면 그때 한 번 만든다 */
+/** 홈페이지: 미리 만들어 둔 HTML을 그대로 보낸다. 없거나 예전 배포 버전으로 만든 것이면 그때 한 번 다시 만든다 */
 async function serveHome(request: Request, env: Env) {
   let obj = await env.BUCKET.get(HOME_KEY, { onlyIf: request.headers });
-  if (!obj) {
+  if (!obj || obj.customMetadata?.v !== deployVersion(env)) {
     const html = renderHome(await readContent(env), new URL(request.url).origin);
-    await env.BUCKET.put(HOME_KEY, html, { httpMetadata: { contentType: 'text/html; charset=utf-8' } });
+    await putHome(env, html);
     obj = await env.BUCKET.get(HOME_KEY);
     if (!obj) return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
   }
