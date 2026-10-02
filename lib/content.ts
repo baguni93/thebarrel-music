@@ -1,0 +1,125 @@
+// 홈페이지에 표시되는 모든 내용. 관리자 페이지에서 이 구조 그대로 편집해 DB(site_content)에 저장한다.
+
+export type MediaType = 'image' | 'video' | 'youtube';
+
+export type Media = {
+  type: MediaType;
+  url: string; // 이미지/영상 파일 URL 또는 유튜브 주소
+  alt?: string;
+};
+
+export type Fact = { label: string; value: string };
+export type ClassItem = { tag: string; title: string; desc: string; image?: string };
+export type GalleryItem = { title: string; caption: string; media: Media };
+export type VideoItem = { title: string; url: string }; // 유튜브 주소
+export type PriceItem = { name: string; detail: string; note: string; price: string };
+
+export type SiteContent = {
+  brand: { name: string; nameEn: string };
+  hero: {
+    eyebrow: string;
+    title: string;
+    lead: string;
+    ctaLabel: string;
+    media: Media | null; // 메인 대표 이미지·배경 영상·유튜브
+  };
+  about: { paragraphs: string[]; facts: Fact[]; image?: string };
+  classes: ClassItem[];
+  gallery: GalleryItem[]; // 공간
+  videos: VideoItem[]; // 영상 섹션 (연주 영상 등)
+  prices: PriceItem[];
+  priceNotes: string[];
+  location: {
+    address: string;
+    transit: string[];
+    parking: string;
+    hours: string;
+    mapUrl: string; // 네이버/카카오 지도 링크
+    mapImage?: string; // 약도 이미지 (선택)
+  };
+  contact: {
+    phone: string;
+    email: string;
+    instagram: string;
+    blog: string;
+    kakao: string;
+  };
+  business: { owner: string; bizNo: string };
+};
+
+export const defaultContent: SiteContent = {
+  brand: { name: '더베럴 뮤직', nameEn: 'THE BARREL MUSIC' },
+  hero: {
+    eyebrow: 'Piano · Vocal · Guitar',
+    title: '오래 묵힐수록 깊어지는 소리,\n더베럴 뮤직',
+    lead: '오크통에서 천천히 익어가는 것처럼, 서두르지 않고 한 사람의 속도에 맞춰 가르칩니다. 처음 건반을 누르는 분부터 무대를 준비하는 분까지 1:1로 함께합니다.',
+    ctaLabel: '상담 문의하기',
+    media: null,
+  },
+  about: {
+    paragraphs: [
+      '더베럴 뮤직은 취미로 음악을 시작하려는 성인과 입시·오디션을 준비하는 학생을 위한 1:1 레슨 학원입니다.',
+      '정해진 교재 진도보다 지금 치고 싶은 곡, 부르고 싶은 노래에서 출발합니다. 첫 상담에서 목표와 수준을 함께 정리하고, 매 레슨 끝에 다음 주 연습 분량을 구체적으로 정해 드립니다.',
+    ],
+    facts: [
+      { label: '레슨 방식', value: '1 : 1' },
+      { label: '1회 레슨', value: '50분' },
+      { label: '개인 연습실', value: '6실' },
+      { label: '운영 시간', value: '10–22시' },
+    ],
+  },
+  classes: [
+    { tag: 'PIANO', title: '피아노', desc: '클래식, 재즈, 반주법까지. 악보를 처음 보는 분도 첫 달 안에 한 곡을 완성하는 것을 목표로 합니다.' },
+    { tag: 'VOCAL', title: '보컬', desc: '호흡과 발성 기초부터 녹음 모니터링까지. 자기 음역에 맞는 곡 선정을 함께합니다.' },
+    { tag: 'GUITAR', title: '기타', desc: '통기타 코드 반주와 핑거스타일. 좋아하는 노래 한 곡으로 시작합니다.' },
+  ],
+  gallery: [],
+  videos: [],
+  prices: [
+    { name: '피아노 주 1회', detail: '1:1 레슨 50분 × 4회', note: '연습실 자유 이용', price: '200,000원' },
+    { name: '피아노 주 2회', detail: '1:1 레슨 50분 × 8회', note: '연습실 자유 이용', price: '360,000원' },
+    { name: '보컬 / 기타 주 1회', detail: '1:1 레슨 50분 × 4회', note: '', price: '220,000원' },
+    { name: '연습실 단독 이용', detail: '4주 무제한 (운영 시간 내)', note: '', price: '80,000원' },
+  ],
+  priceNotes: ['수강료는 4주 기준, VAT 포함입니다.', '첫 상담과 수준 체크는 무료입니다.'],
+  location: {
+    address: '서울 ○○구 ○○로 00, 2층',
+    transit: ['지하철 ○○역 2번 출구에서 도보 4분', '버스 ○○정류장 하차 후 도보 2분'],
+    parking: '건물 지하 주차장 1시간 무료',
+    hours: '평일 10:00–22:00 · 토요일 10:00–18:00 · 일요일 휴무',
+    mapUrl: 'https://map.naver.com',
+  },
+  contact: {
+    phone: '010-0000-0000',
+    email: 'hello@thebarrel.kr',
+    instagram: '',
+    blog: '',
+    kakao: '',
+  },
+  business: { owner: '○○○', bizNo: '000-00-00000' },
+};
+
+/** DB에 저장된 값이 일부 비어 있어도 화면이 깨지지 않도록 기본값과 합친다 */
+export function withDefaults(raw: unknown): SiteContent {
+  const c = (raw && typeof raw === 'object' ? raw : {}) as Partial<SiteContent>;
+  const d = defaultContent;
+  return {
+    brand: { ...d.brand, ...c.brand },
+    hero: { ...d.hero, ...c.hero },
+    about: { ...d.about, ...c.about },
+    classes: c.classes ?? d.classes,
+    gallery: c.gallery ?? d.gallery,
+    videos: c.videos ?? d.videos,
+    prices: c.prices ?? d.prices,
+    priceNotes: c.priceNotes ?? d.priceNotes,
+    location: { ...d.location, ...c.location },
+    contact: { ...d.contact, ...c.contact },
+    business: { ...d.business, ...c.business },
+  };
+}
+
+/** 유튜브 주소(watch, youtu.be, shorts, embed)에서 영상 ID 추출 */
+export function youtubeId(url: string): string | null {
+  const m = url.match(/(?:youtu\.be\/|v=|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
