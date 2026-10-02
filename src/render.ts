@@ -31,6 +31,26 @@ function media(m: Media | null | undefined, autoPlay = false): string {
   return `<img src="${src}" alt="${alt}" loading="${autoPlay ? 'eager' : 'lazy'}">`;
 }
 
+// SNS 아이콘 (선 아이콘, 글자색을 따라감). 화면 낭독기에는 이름을 읽어 준다
+const SOCIAL_ICONS: Record<string, string> = {
+  instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/>',
+  blog: '<path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4"/><path d="M8 12h8M8 16h5"/>',
+  kakao: '<path d="M12 4C7 4 3 7.1 3 11c0 2.5 1.6 4.6 4 5.9L6 21l4.3-2.9c.6.1 1.1.1 1.7.1 5 0 9-3.1 9-7s-4-7-9-7z"/>',
+  youtube: '<rect x="2.5" y="5.5" width="19" height="13" rx="4"/><path d="M10 9.2v5.6l5-2.8z" fill="currentColor"/>',
+};
+
+function socialLink(href: string, key: keyof typeof SOCIAL_ICONS, label: string, image?: string) {
+  const u = safeUrl(href);
+  if (!u) return '';
+  const img = safeUrl(image);
+  if (img) {
+    return `<a class="social has-logo" href="${u}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">`
+      + `<img src="${img}" alt="" width="44" height="44"></a>`;
+  }
+  return `<a class="social" href="${u}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">`
+    + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SOCIAL_ICONS[key]}</svg></a>`;
+}
+
 const KEYS = (() => {
   const black = [1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0];
   return `<div class="keys" aria-hidden="true">
@@ -116,10 +136,12 @@ export function renderHome(c: SiteContent, origin = '', opts: { preview?: boolea
   const ogImage = heroImg.startsWith('/') ? esc(origin) + heroImg : heroImg;
   const desc = esc(c.hero.lead.slice(0, 140));
 
-  const link = (href: string, label: string) => {
-    const u = safeUrl(href);
-    return u ? `<a class="chip" href="${u}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : '';
-  };
+  const socials = [
+    socialLink(c.contact.instagram, 'instagram', '인스타그램', c.contact.icons?.instagram),
+    socialLink(c.contact.blog, 'blog', '네이버 블로그', c.contact.icons?.blog),
+    socialLink(c.contact.kakao, 'kakao', '카카오톡 채널', c.contact.icons?.kakao),
+    socialLink(c.contact.youtube, 'youtube', '유튜브', c.contact.icons?.youtube),
+  ].join('');
 
   return `<!doctype html>
 <html lang="ko">
@@ -272,15 +294,15 @@ ${ogImage ? `<meta property="og:image" content="${ogImage}">` : ''}
 <div class="contact" id="contact">
   <div class="wrap contact-in">
     <div>
-      <h2>상담은 편하게 연락 주세요</h2>
-      <p>방문 전 미리 연락 주시면 상담 시간을 맞춰 두겠습니다.</p>
+      <h2>${esc(c.contact.title)}</h2>
+      ${c.contact.desc ? `<p>${esc(c.contact.desc)}</p>` : ''}
     </div>
-    <div class="chips">
-      ${c.contact.phone ? `<a class="chip" href="tel:${esc(tel)}">전화 ${esc(c.contact.phone)}</a>` : ''}
-      ${c.contact.email ? `<a class="chip" href="mailto:${esc(c.contact.email)}">메일 ${esc(c.contact.email)}</a>` : ''}
-      ${link(c.contact.instagram, '인스타그램')}
-      ${link(c.contact.blog, '블로그')}
-      ${link(c.contact.kakao, '카카오톡 상담')}
+    <div class="contact-links">
+      <div class="chips">
+        ${c.contact.phone ? `<a class="chip" href="tel:${esc(tel)}">전화 ${esc(c.contact.phone)}</a>` : ''}
+        ${c.contact.email ? `<a class="chip" href="mailto:${esc(c.contact.email)}">메일 ${esc(c.contact.email)}</a>` : ''}
+      </div>
+      ${socials ? `<div class="socials">${socials}</div>` : ''}
     </div>
   </div>
 </div>

@@ -26,7 +26,18 @@ export type SiteContent = {
     mapUrl: string;
     mapImage?: string;
   };
-  contact: { phone: string; email: string; instagram: string; blog: string; kakao: string };
+  contact: {
+    title: string; // 상담 안내 제목
+    desc: string; // 상담 안내 문구
+    phone: string;
+    email: string;
+    instagram: string;
+    blog: string;
+    kakao: string;
+    youtube: string; // 유튜브 채널 주소
+    // SNS별로 올린 로고 이미지 주소 (비우면 기본 선 아이콘)
+    icons?: { instagram?: string; blog?: string; kakao?: string; youtube?: string };
+  };
   business: { owner: string; bizNo: string };
 };
 
@@ -72,7 +83,17 @@ export const defaultContent: SiteContent = {
     hours: '평일 10:00–22:00 · 토요일 10:00–18:00 · 일요일 휴무',
     mapUrl: 'https://map.naver.com',
   },
-  contact: { phone: '010-0000-0000', email: 'hello@thebarrel.kr', instagram: '', blog: '', kakao: '' },
+  contact: {
+    title: '상담은 편하게 연락 주세요',
+    desc: '방문 전 미리 연락 주시면 상담 시간을 맞춰 두겠습니다.',
+    phone: '010-0000-0000',
+    email: 'hello@thebarrel.kr',
+    instagram: '',
+    blog: '',
+    kakao: '',
+    youtube: '',
+    icons: {},
+  },
   business: { owner: '○○○', bizNo: '000-00-00000' },
 };
 

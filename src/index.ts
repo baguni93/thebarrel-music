@@ -12,9 +12,9 @@ export interface Env {
 const CONTENT_KEY = 'content.json'; // 관리자에서 저장한 홈페이지 내용
 const HOME_KEY = 'site/index.html'; // 저장할 때 미리 만들어 둔 홈페이지 화면
 const MAX_UPLOAD = 50 * 1024 * 1024; // 50MB
-const ALLOWED_UPLOAD = /^(image\/(jpeg|png|webp|gif|avif)|video\/(mp4|webm))$/;
+const ALLOWED_UPLOAD = /^(image\/(jpeg|png|webp|gif|avif|svg\+xml)|video\/(mp4|webm))$/;
 const EXT: Record<string, string> = {
-  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif',
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif', 'image/svg+xml': 'svg',
   'video/mp4': 'mp4', 'video/webm': 'webm',
 };
 
@@ -70,6 +70,9 @@ async function serveMedia(request: Request, env: Env, key: string) {
   headers.set('etag', obj.httpEtag);
   headers.set('accept-ranges', 'bytes');
   headers.set('cache-control', 'public, max-age=31536000, immutable');
+  // 올린 파일(특히 SVG)을 직접 열어도 안에 든 스크립트가 실행되지 않게
+  headers.set('content-security-policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self'; sandbox");
+  headers.set('x-content-type-options', 'nosniff');
   if (!('body' in obj)) return new Response(null, { status: 304, headers });
 
   const r = obj.range as { offset?: number; length?: number; suffix?: number } | undefined;
@@ -143,7 +146,7 @@ async function handleApi(request: Request, env: Env, url: URL) {
   if (path === '/api/upload' && request.method === 'POST') {
     const type = (request.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
     const size = Number(request.headers.get('content-length') ?? 0);
-    if (!ALLOWED_UPLOAD.test(type)) return json({ error: '사진(jpg, png, webp, gif) 또는 mp4·webm 영상만 올릴 수 있습니다.' }, 415);
+    if (!ALLOWED_UPLOAD.test(type)) return json({ error: '사진(jpg, png, webp, gif, svg) 또는 mp4·webm 영상만 올릴 수 있습니다.' }, 415);
     if (!size || size > MAX_UPLOAD) return json({ error: '파일은 50MB 이하만 올릴 수 있습니다.' }, 413);
     const month = new Date().toISOString().slice(0, 7);
     const key = `media/${month}/${crypto.randomUUID()}.${EXT[type]}`;
