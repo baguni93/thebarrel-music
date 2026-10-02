@@ -396,7 +396,22 @@
   // 넓은 화면에서는 편집 칸 오른쪽에 늘 떠 있고, 좁은 화면에서는 '미리보기' 버튼으로 전체 화면으로 연다.
   var DEVICES = { desktop: 1280, mobile: 390 };
   var TAB_SECTION = { basic: 'contact', hero: 'home', about: 'about', space: 'space', video: 'video', price: 'price', map: 'map' };
-  var pv = { el: null, viewport: null, frame: null, device: 'desktop', scrollY: 0, timer: null, seq: 0, status: null };
+  // 탭마다 홈페이지의 어느 부분을 바꾸는지
+  var TAB_PARTS = {
+    basic: { keys: ['header', 'contact', 'footer'] },
+    hero: { keys: ['header', 'home'] },
+    about: { keys: ['about'] },
+    space: { keys: ['space'], empty: '공간 사진을 추가하면 여기에 나타납니다.' },
+    video: { keys: ['video'], empty: '유튜브 영상을 추가하면 여기에 ‘영상’ 섹션이 나타납니다.' },
+    price: { keys: ['price'] },
+    map: { keys: ['map'] },
+  };
+  var pv = { el: null, viewport: null, frame: null, device: 'desktop', scrollY: 0, timer: null, seq: 0, status: null, focusOnly: true };
+
+  function focusInfo() {
+    var f = pv.focusOnly ? TAB_PARTS[state.tab] : null;
+    return f ? { keys: f.keys, empty: f.empty || '' } : { keys: null, empty: '' };
+  }
 
   function layoutFrame(frame) {
     if (!frame || !pv.viewport) return;
@@ -416,7 +431,6 @@
   /** 새 화면이 준비되면 보던 위치로 맞추고 이전 화면을 치운다 */
   function showFrame(frame) {
     if (!frame.parentNode || pv.frame === frame) return;
-    frame.contentWindow.postMessage({ type: 'pv-scroll', y: pv.scrollY }, '*');
     Array.prototype.forEach.call(pv.viewport.querySelectorAll('iframe'), function (f) { if (f !== frame) f.remove(); });
     frame.classList.remove('loading');
     pv.frame = frame;
@@ -437,6 +451,18 @@
       h('div', { className: 'pv-bar' }, [
         h('b', { text: '미리보기' }),
         h('div', { className: 'pv-sizes' }, [sizeBtn('PC', 'desktop'), sizeBtn('모바일', 'mobile')]),
+        (function () {
+          var group = h('div', { className: 'pv-sizes', role: 'group', 'aria-label': '보는 범위' });
+          var mk = function (label, mode, title) {
+            var b = h('button', { type: 'button', className: 'mini', title: title, text: label, 'aria-pressed': String((mode === 'focus') === pv.focusOnly),
+              onclick: function () { setFocusOnly(mode === 'focus', group); } });
+            b.dataset.mode = mode;
+            return b;
+          };
+          group.appendChild(mk('이 탭만', 'focus', '지금 편집 중인 탭이 바꾸는 부분만 보기'));
+          group.appendChild(mk('전체', 'all', '홈페이지 전체 보기'));
+          return group;
+        })(),
         pv.status,
         h('button', { type: 'button', className: 'mini pv-close', text: '닫기', onclick: closePreview }),
       ]),
@@ -461,7 +487,9 @@
         if (my !== pv.seq) return; // 그사이 더 새로운 요청이 있으면 버린다
         var next = h('iframe', { title: '홈페이지 미리보기', sandbox: 'allow-scripts allow-popups', className: 'pv-frame loading' });
         next.addEventListener('load', function () { setTimeout(function () { showFrame(next); }, 300); }); // 안쪽 신호가 안 와도 보이게
-        next.srcdoc = html;
+        var f = focusInfo();
+        var init = '<script>window.PV_INIT=' + JSON.stringify({ keys: f.keys, empty: f.empty, y: pv.scrollY }).replace(/</g, '\\u003c') + '<\/script>';
+        next.srcdoc = html.replace('</head>', init + '</head>');
         pv.viewport.appendChild(next);
         layoutFrame(next);
       })
@@ -474,8 +502,25 @@
   }
 
   function gotoSection(tabId) {
-    var id = TAB_SECTION[tabId];
-    if (pv.frame && id) pv.frame.contentWindow.postMessage({ type: 'pv-goto', id: id }, '*');
+    if (!pv.frame) return;
+    if (pv.focusOnly) {
+      pv.scrollY = 0;
+      var f = focusInfo();
+      pv.frame.contentWindow.postMessage({ type: 'pv-focus', keys: f.keys, empty: f.empty }, '*');
+    } else {
+      var id = TAB_SECTION[tabId];
+      if (id) pv.frame.contentWindow.postMessage({ type: 'pv-goto', id: id }, '*');
+    }
+  }
+
+  function setFocusOnly(on, group) {
+    pv.focusOnly = on;
+    Array.prototype.forEach.call(group.children, function (b) { b.setAttribute('aria-pressed', String((b.dataset.mode === 'focus') === on)); });
+    if (!pv.frame) return;
+    var f = focusInfo();
+    pv.scrollY = 0;
+    pv.frame.contentWindow.postMessage({ type: 'pv-focus', keys: f.keys, empty: f.empty }, '*');
+    if (!on) { var id = TAB_SECTION[state.tab]; if (id) pv.frame.contentWindow.postMessage({ type: 'pv-goto', id: id }, '*'); }
   }
 
   window.addEventListener('message', function (e) {
