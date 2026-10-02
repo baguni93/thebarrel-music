@@ -382,10 +382,60 @@
         ]),
       ]),
       tabs, panel,
-      h('div', { className: 'savebar' }, [h('span', { id: 'save-status', className: 'status' }), saveBtn]),
+      h('div', { className: 'savebar' }, [h('span', { id: 'save-status', className: 'status' }),
+        h('button', { id: 'preview-btn', type: 'button', className: 'btn', text: '미리보기', onclick: openPreview }), saveBtn]),
     ]));
     drawTab();
   }
+
+
+  /* ───── 미리보기: 저장하지 않고 지금 고친 내용으로 홈페이지를 보여 준다 ───── */
+  var previewEl = null;
+  function closePreview() {
+    if (!previewEl) return;
+    previewEl.remove(); previewEl = null;
+    document.body.style.overflow = '';
+    var btn = document.getElementById('preview-btn');
+    if (btn) btn.focus();
+  }
+  function openPreview() {
+    closePreview();
+    var frame = h('iframe', { title: '홈페이지 미리보기', sandbox: 'allow-scripts allow-popups' });
+    var stage = h('div', { className: 'pv-stage' }, [h('div', { className: 'pv-device', id: 'pv-device' }, [frame])]);
+    var status = h('span', { className: 'status', text: '화면을 만드는 중…' });
+    var sizeBtn = function (label, mode) {
+      return h('button', { type: 'button', className: 'mini', 'aria-pressed': String(mode === 'desktop'), text: label, onclick: function (e) {
+        document.getElementById('pv-device').className = 'pv-device' + (mode === 'mobile' ? ' mobile' : '');
+        Array.prototype.forEach.call(e.target.parentNode.children, function (b) { b.setAttribute('aria-pressed', String(b === e.target)); });
+      } });
+    };
+    var saveFromPreview = h('button', { type: 'button', className: 'btn primary', text: '이대로 저장하기', disabled: !state.dirty,
+      onclick: function () { closePreview(); save(); } });
+    previewEl = h('div', { className: 'pv', role: 'dialog', 'aria-modal': 'true', 'aria-label': '홈페이지 미리보기' }, [
+      h('div', { className: 'pv-bar' }, [
+        h('b', { text: '미리보기' }),
+        h('span', { className: 'hint', text: state.dirty ? '아직 저장 전 내용입니다. 홈페이지에는 저장해야 반영돼요.' : '현재 홈페이지와 같은 내용입니다.' }),
+        h('div', { className: 'pv-sizes' }, [sizeBtn('PC', 'desktop'), sizeBtn('모바일', 'mobile')]),
+        h('div', { className: 'pv-actions' }, [
+          status,
+          h('button', { type: 'button', className: 'mini', text: '닫기', onclick: closePreview }),
+          saveFromPreview,
+        ]),
+      ]),
+      stage,
+    ]);
+    document.body.appendChild(previewEl);
+    document.body.style.overflow = 'hidden';
+    fetch('/api/preview', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(state.content) })
+      .then(function (res) {
+        if (res.status === 401) throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+        if (!res.ok) throw new Error('미리보기를 만들지 못했습니다.');
+        return res.text();
+      })
+      .then(function (html) { frame.srcdoc = html; status.textContent = ''; })
+      .catch(function (e) { status.className = 'status err'; status.textContent = e.message; });
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePreview(); });
 
   function save() {
     var btn = document.getElementById('save-btn');
