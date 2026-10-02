@@ -39,9 +39,14 @@ const SOCIAL_ICONS: Record<string, string> = {
   youtube: '<rect x="2.5" y="5.5" width="19" height="13" rx="4"/><path d="M10 9.2v5.6l5-2.8z" fill="currentColor"/>',
 };
 
-function socialLink(href: string, key: keyof typeof SOCIAL_ICONS, label: string) {
+function socialLink(href: string, key: keyof typeof SOCIAL_ICONS, label: string, image?: string) {
   const u = safeUrl(href);
   if (!u) return '';
+  const img = safeUrl(image);
+  if (img) {
+    return `<a class="social has-logo" href="${u}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">`
+      + `<img src="${img}" alt="" width="44" height="44"></a>`;
+  }
   return `<a class="social" href="${u}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}" title="${esc(label)}">`
     + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SOCIAL_ICONS[key]}</svg></a>`;
 }
@@ -132,10 +137,10 @@ export function renderHome(c: SiteContent, origin = '', opts: { preview?: boolea
   const desc = esc(c.hero.lead.slice(0, 140));
 
   const socials = [
-    socialLink(c.contact.instagram, 'instagram', '인스타그램'),
-    socialLink(c.contact.blog, 'blog', '네이버 블로그'),
-    socialLink(c.contact.kakao, 'kakao', '카카오톡 채널'),
-    socialLink(c.contact.youtube, 'youtube', '유튜브'),
+    socialLink(c.contact.instagram, 'instagram', '인스타그램', c.contact.icons?.instagram),
+    socialLink(c.contact.blog, 'blog', '네이버 블로그', c.contact.icons?.blog),
+    socialLink(c.contact.kakao, 'kakao', '카카오톡 채널', c.contact.icons?.kakao),
+    socialLink(c.contact.youtube, 'youtube', '유튜브', c.contact.icons?.youtube),
   ].join('');
 
   return `<!doctype html>

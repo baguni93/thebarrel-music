@@ -35,6 +35,8 @@ export type SiteContent = {
     blog: string;
     kakao: string;
     youtube: string; // 유튜브 채널 주소
+    // SNS별로 올린 로고 이미지 주소 (비우면 기본 선 아이콘)
+    icons?: { instagram?: string; blog?: string; kakao?: string; youtube?: string };
   };
   business: { owner: string; bizNo: string };
 };
@@ -90,6 +92,7 @@ export const defaultContent: SiteContent = {
     blog: '',
     kakao: '',
     youtube: '',
+    icons: {},
   },
   business: { owner: '○○○', bizNo: '000-00-00000' },
 };
