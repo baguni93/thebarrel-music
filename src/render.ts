@@ -52,6 +52,44 @@ function iconLink(href: string, key: keyof typeof SOCIAL_ICONS, label: string, i
   return `<a class="icon-link" href="${u}"${target} aria-label="${esc(label)}" title="${esc(label)}">${inner}</a>`;
 }
 
+/** 홈 영상 카드: 처음엔 썸네일과 재생 버튼만, 누르면 그 자리에서 재생 */
+function videoCard(v: { title: string; media: Media }): string {
+  const label = esc(v.title || '영상');
+  const play = `<span class="play" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></span>`;
+  if (v.media.type === 'youtube') {
+    const id = youtubeId(v.media.url);
+    if (!id) return '';
+    return `<figure class="vcard"><button type="button" class="vthumb" data-yt="${id}" aria-label="${label} 재생">`
+      + `<img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="" loading="lazy">${play}</button>`
+      + (v.title ? `<figcaption>${esc(v.title)}</figcaption>` : '') + `</figure>`;
+  }
+  const src = safeUrl(v.media.url);
+  if (!src) return '';
+  return `<figure class="vcard"><button type="button" class="vthumb" data-src="${src}" aria-label="${label} 재생">`
+    + `<video src="${src}#t=0.1" muted playsinline preload="metadata" tabindex="-1"></video>${play}</button>`
+    + (v.title ? `<figcaption>${esc(v.title)}</figcaption>` : '') + `</figure>`;
+}
+
+const VIDEO_SCRIPT = `<script>
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('.vthumb');
+  if (!b || document.body.classList.contains('is-preview')) return;
+  var el;
+  if (b.dataset.yt) {
+    el = document.createElement('iframe');
+    el.src = 'https://www.youtube-nocookie.com/embed/' + b.dataset.yt + '?autoplay=1&playsinline=1';
+    el.allow = 'autoplay; encrypted-media; picture-in-picture';
+    el.allowFullscreen = true;
+    el.title = b.getAttribute('aria-label');
+  } else {
+    el = document.createElement('video');
+    el.src = b.dataset.src; el.controls = true; el.autoplay = true; el.playsInline = true;
+  }
+  el.className = 'vplayer';
+  b.replaceWith(el);
+});
+</script>`;
+
 const KEYS = (() => {
   const black = [1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0];
   return `<div class="keys" aria-hidden="true">
@@ -134,21 +172,18 @@ export const PAGES = [
   { key: 'home', path: '/', label: 'HOME', title: '' },
   { key: 'about', path: '/about', label: '학원소개', title: '학원소개' },
   { key: 'space', path: '/space', label: '공간', title: '공간' },
-  { key: 'video', path: '/video', label: '영상', title: '영상' },
   { key: 'price', path: '/price', label: '수강료', title: '수강료' },
   { key: 'map', path: '/map', label: '위치', title: '오시는 길' },
 ] as const;
 export type PageKey = (typeof PAGES)[number]['key'];
 
-/** 영상이 하나도 없으면 영상 페이지는 메뉴에서 빠진다 */
-export function visiblePages(c: SiteContent) {
-  const hasVideo = c.videos.some((v) => youtubeId(v.url));
-  return PAGES.filter((p) => p.key !== 'video' || hasVideo);
+export function visiblePages(_c: SiteContent) {
+  return PAGES;
 }
 
 export function renderPage(c: SiteContent, page: PageKey, origin = '', opts: { preview?: boolean } = {}): string {
   const tel = c.contact.phone.replace(/[^0-9+]/g, '');
-  const videos = c.videos.filter((v) => youtubeId(v.url));
+  const videos = c.videos.filter((v) => (v.media.type === 'youtube' ? youtubeId(v.media.url) : safeUrl(v.media.url)));
   const year = new Date().getFullYear();
   const heroImg = c.hero.media?.type === 'image' ? safeUrl(c.hero.media.url) : '';
   const ogImage = heroImg.startsWith('/') ? esc(origin) + heroImg : heroImg;
@@ -173,18 +208,16 @@ export function renderPage(c: SiteContent, page: PageKey, origin = '', opts: { p
 
   const sections: Record<PageKey, () => string> = {
     home: () => `
-  <div class="wrap hero" id="home">
-    <div>
-      <div class="eyebrow">${esc(c.hero.eyebrow)}</div>
-      <h1>${esc(c.hero.title)}</h1>
-      <p class="lead">${esc(c.hero.lead)}</p>
-      <div class="btns">
-        <a class="btn primary" href="${tel ? `tel:${esc(tel)}` : '#contact'}">${esc(c.hero.ctaLabel)}</a>
-        <a class="btn" href="/price">수강료 보기</a>
-      </div>
-    </div>
-    <div class="hero-media">${media(c.hero.media, true) || KEYS}</div>
-  </div>`,
+  <section class="banner" id="home" aria-label="대표 이미지">
+    ${media(c.hero.media, true) || KEYS}
+  </section>
+  ${videos.length ? `<section class="wrap home-videos" id="videos" aria-label="영상">${videos.map(videoCard).join('')}</section>` : ''}
+  <section class="wrap intro">
+    ${c.hero.eyebrow ? `<div class="eyebrow">${esc(c.hero.eyebrow)}</div>` : ''}
+    <h1>${esc(c.hero.title)}</h1>
+    ${c.hero.lead ? `<p class="lead">${esc(c.hero.lead)}</p>` : ''}
+    <a class="btn-line" href="/price">수강료 보기</a>
+  </section>`,
     about: () => `
   <section class="section" id="about">
     <div class="wrap">
@@ -225,20 +258,6 @@ export function renderPage(c: SiteContent, page: PageKey, origin = '', opts: { p
             )
             .join('')}</div>`
         : '<p class="empty">공간 사진을 준비 중입니다.</p>'}
-    </div>
-  </section>`,
-    video: () => `
-  <section class="section" id="video">
-    <div class="wrap">
-      <div class="sec-head"><h1>영상</h1><span class="eyebrow">Performance</span></div>
-      ${videos.length ? `<div class="videos">${videos
-        .map(
-          (v) => `<div>
-            <div class="frame">${media({ type: 'youtube', url: v.url, alt: v.title })}</div>
-            ${v.title ? `<p>${esc(v.title)}</p>` : ''}
-          </div>`,
-        )
-        .join('')}</div>` : '<p class="empty">영상을 준비 중입니다.</p>'}
     </div>
   </section>`,
     price: () => `
@@ -304,7 +323,7 @@ ${origin && !opts.preview ? `<link rel="canonical" href="${esc(origin)}${meta.pa
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="/site.css">
 </head>
-<body class="page-${page}">
+<body class="page-${page}${opts.preview ? ' is-preview' : ''}">
 <header class="site-header">
   <div class="wrap head">
     <a class="logo" href="/">${esc(c.brand.name)}${c.brand.nameEn ? `<small>${esc(c.brand.nameEn)}</small>` : ''}</a>
@@ -335,6 +354,7 @@ ${origin && !opts.preview ? `<link rel="canonical" href="${esc(origin)}${meta.pa
     ${icons ? `<nav class="foot-icons" aria-label="연락처와 SNS">${icons}</nav>` : ''}
   </div>
 </footer>
+${page === 'home' && videos.length ? VIDEO_SCRIPT : ''}
 ${opts.preview ? PREVIEW_SCRIPT : ''}
 </body>
 </html>`;

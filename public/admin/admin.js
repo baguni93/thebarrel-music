@@ -176,7 +176,7 @@
     var wrap = h('div', { className: 'field' });
     function draw() {
       wrap.innerHTML = '';
-      var m = get(obj, f.key) || { type: 'image', url: '' };
+      var m = get(obj, f.key) || { type: (f.types && f.types[0]) || 'image', url: '' };
       var commit = function (patch, redraw) {
         set(obj, f.key, Object.assign({}, m, patch)); markDirty();
         if (redraw) draw();
@@ -186,7 +186,7 @@
         h('option', { value: 'image', text: '이미지' }),
         h('option', { value: 'video', text: '영상 파일 (mp4)' }),
         h('option', { value: 'youtube', text: '유튜브 링크' }),
-      ]);
+      ].filter(function (o) { return !f.types || f.types.indexOf(o.value) !== -1; }));
       sel.value = m.type;
       var alt = h('input', { id: altId, oninput: function (e) { m = Object.assign({}, m, { alt: e.target.value }); set(obj, f.key, m); markDirty(); } });
       alt.value = m.alt || '';
@@ -280,16 +280,27 @@
       T('contact.icons.kakao', '카카오톡 채널 로고 이미지 (선택)', { type: 'image' }),
       T('contact.youtube', '유튜브 채널 주소', { placeholder: 'https://www.youtube.com/@...' }),
       T('contact.icons.youtube', '유튜브 로고 이미지 (선택)', { type: 'image' }),
-      { hint: '비워 둔 링크는 아이콘이 나오지 않습니다. 로고 이미지를 올리지 않으면 기본 선 아이콘이 나옵니다. 정사각형 PNG·SVG를 권장하고, 각 회사의 로고 사용 규칙을 지켜 주세요. 개별 영상은 ‘영상’ 탭에 넣어 주세요.' },
+      { hint: '비워 둔 링크는 아이콘이 나오지 않습니다. 로고 이미지를 올리지 않으면 기본 선 아이콘이 나옵니다. 정사각형 PNG·SVG를 권장하고, 각 회사의 로고 사용 규칙을 지켜 주세요. 홈에 넣을 개별 영상은 ‘메인’ 탭에서 추가해 주세요.' },
       { heading: '사업자 정보' },
       { row: [T('business.owner', '대표자'), T('business.bizNo', '사업자등록번호')] },
     ] },
     { id: 'hero', name: '메인', fields: [
+      { heading: '맨 위 대표 이미지' },
+      T('hero.media', '대표 이미지 / 영상 (화면 가로로 꽉 차게 나옵니다. 영상은 소리 없이 자동 반복 재생)', { type: 'media', allowEmpty: true }),
+      { heading: '홈 영상' },
+      { hint: '대표 이미지 아래에 두 개씩 나란히 나옵니다. 방문자가 누르면 그 자리에서 재생돼요. 화살표로 순서를 바꿀 수 있어요.' },
+      T('videos', '', { type: 'list', make: function () { return { title: '', media: { type: 'youtube', url: '' } }; },
+        title: function (x, i) { return x.title || '영상 ' + (i + 1); },
+        fields: [
+          T('title', '제목 (선택, 영상 아래 작게 표시)'),
+          T('media', '영상', { type: 'media', types: ['youtube', 'video'] }),
+        ] }),
+      { heading: '소개 문구' },
+      { hint: '영상 아래 가운데에 나옵니다.' },
       T('hero.eyebrow', '작은 제목 (영문 권장)'),
       T('hero.title', '큰 제목 (줄바꿈 가능)', { area: true }),
       T('hero.lead', '소개 문구', { area: true }),
-      T('hero.ctaLabel', '상담 버튼 문구'),
-      T('hero.media', '대표 이미지 / 영상 (영상은 소리 없이 자동 반복 재생)', { type: 'media', allowEmpty: true }),
+      T('hero.ctaLabel', '상담 버튼 문구 (맨 아래 상담 안내 버튼)'),
     ] },
     { id: 'about', name: '학원소개', fields: [
       T('about.paragraphs', '소개 글', { type: 'lines', hint: '한 줄이 한 문단입니다.' }),
@@ -315,12 +326,6 @@
           { row: [T('title', '공간 이름'), T('caption', '설명')] },
           T('media', '사진 / 영상', { type: 'media' }),
         ] }),
-    ] },
-    { id: 'video', name: '영상', fields: [
-      { hint: '유튜브 주소를 넣으면 홈페이지에 ‘영상’ 메뉴와 섹션이 생깁니다. 비우면 사라집니다.' },
-      T('videos', '', { type: 'list', make: function () { return { title: '', url: '' }; },
-        title: function (x, i) { return x.title || '영상 ' + (i + 1); },
-        fields: [T('title', '제목'), T('url', '유튜브 주소', { placeholder: 'https://youtu.be/...' })] }),
     ] },
     { id: 'price', name: '수강료', fields: [
       T('prices', '', { type: 'list', make: function () { return { name: '', detail: '', note: '', price: '' }; },
@@ -406,8 +411,8 @@
   // 넓은 화면에서는 편집 칸 오른쪽에 늘 떠 있고, 좁은 화면에서는 '미리보기' 버튼으로 전체 화면으로 연다.
   var DEVICES = { desktop: 1280, mobile: 390 };
   // 탭마다 미리보기로 보여 줄 페이지. 기본 정보는 홈 페이지에서 상단·상담 안내·하단만 보여 준다
-  var TAB_PAGE = { basic: 'home', hero: 'home', about: 'about', space: 'space', video: 'video', price: 'price', map: 'map' };
-  var TAB_PARTS = { basic: ['header', 'contact', 'footer'], hero: ['header', 'home'] };
+  var TAB_PAGE = { basic: 'home', hero: 'home', about: 'about', space: 'space', price: 'price', map: 'map' };
+  var TAB_PARTS = { basic: ['header', 'contact', 'footer'] };
   var pv = { el: null, viewport: null, frame: null, device: 'desktop', scrollY: 0, timer: null, seq: 0, status: null };
 
   function focusInfo() {
