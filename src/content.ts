@@ -6,7 +6,7 @@ export type Media = { type: MediaType; url: string; alt?: string };
 export type Fact = { label: string; value: string };
 export type ClassItem = { tag: string; title: string; desc: string; image?: string };
 export type GalleryItem = { title: string; caption: string; media: Media };
-export type VideoItem = { title: string; url: string };
+export type VideoItem = { title: string; media: Media }; // 홈에 나오는 영상 (유튜브 링크 또는 mp4 파일)
 export type PriceItem = { name: string; detail: string; note: string; price: string };
 
 export type SiteContent = {
@@ -101,6 +101,18 @@ const str = (v: unknown, d = ''): string => (typeof v === 'string' ? v : d);
 const arr = <T>(v: unknown, d: T[]): T[] => (Array.isArray(v) ? (v as T[]) : d);
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
+/** 예전 형식({ title, url } = 유튜브 링크)으로 저장된 영상도 새 형식으로 바꿔 읽는다 */
+function normalizeVideo(v: Record<string, unknown>): VideoItem | null {
+  if (!v || typeof v !== 'object') return null;
+  const title = str(v.title);
+  const m = obj(v.media);
+  if (m.url !== undefined || m.type !== undefined) {
+    const type = m.type === 'video' ? 'video' : 'youtube';
+    return { title, media: { type, url: str(m.url), alt: str(m.alt) || undefined } };
+  }
+  return { title, media: { type: 'youtube', url: str(v.url) } };
+}
+
 /** 저장된 값이 일부 비어 있거나 모양이 틀려도 화면이 깨지지 않도록 기본값과 합친다 */
 export function withDefaults(raw: unknown): SiteContent {
   const c = obj(raw) as Partial<SiteContent>;
@@ -111,7 +123,7 @@ export function withDefaults(raw: unknown): SiteContent {
     about: { ...d.about, ...obj(c.about) } as SiteContent['about'],
     classes: arr(c.classes, d.classes),
     gallery: arr(c.gallery, d.gallery),
-    videos: arr(c.videos, d.videos),
+    videos: arr<Record<string, unknown>>(c.videos, []).map(normalizeVideo).filter((v): v is VideoItem => !!v),
     prices: arr(c.prices, d.prices),
     priceNotes: arr(c.priceNotes, d.priceNotes),
     location: { ...d.location, ...obj(c.location) } as SiteContent['location'],

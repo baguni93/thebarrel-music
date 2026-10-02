@@ -1,6 +1,6 @@
 import { checkPassword, clearSessionCookie, isLoggedIn, makeSessionCookie } from './auth';
 import { withDefaults, type SiteContent } from './content';
-import { renderHome } from './render';
+import { PAGES, renderPage, visiblePages, type PageKey } from './render';
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -12,8 +12,8 @@ export interface Env {
 /** 미리 만든 홈페이지가 어느 배포 버전으로 만들어졌는지 기록해 두고, 새로 배포되면 다시 만든다 */
 const deployVersion = (env: Env) => env.CF_VERSION_METADATA?.id ?? 'dev';
 
-async function putHome(env: Env, html: string) {
-  await env.BUCKET.put(HOME_KEY, html, {
+async function putPage(env: Env, page: PageKey, html: string) {
+  await env.BUCKET.put(pageKey(page), html, {
     httpMetadata: { contentType: 'text/html; charset=utf-8' },
     customMetadata: { v: deployVersion(env) },
   });
@@ -21,7 +21,8 @@ async function putHome(env: Env, html: string) {
 
 // R2 안의 파일 이름
 const CONTENT_KEY = 'content.json'; // 관리자에서 저장한 홈페이지 내용
-const HOME_KEY = 'site/index.html'; // 저장할 때 미리 만들어 둔 홈페이지 화면
+// 저장할 때 미리 만들어 둔 페이지 화면: site/home.html, site/about.html …
+const pageKey = (page: PageKey) => `site/${page}.html`;
 const MAX_UPLOAD = 50 * 1024 * 1024; // 50MB
 const ALLOWED_UPLOAD = /^(image\/(jpeg|png|webp|gif|avif|svg\+xml)|video\/(mp4|webm))$/;
 const EXT: Record<string, string> = {
@@ -49,16 +50,24 @@ async function publish(env: Env, content: SiteContent, origin: string) {
     });
   }
   await env.BUCKET.put(CONTENT_KEY, JSON.stringify(content), { httpMetadata: { contentType: 'application/json' } });
-  await putHome(env, renderHome(content, origin));
+  const shown = visiblePages(content);
+  await Promise.all(PAGES.map((p) =>
+    shown.includes(p)
+      ? putPage(env, p.key, renderPage(content, p.key, origin))
+      : env.BUCKET.delete(pageKey(p.key)), // 영상을 모두 지우면 영상 페이지도 없앤다
+  ));
 }
 
-/** 홈페이지: 미리 만들어 둔 HTML을 그대로 보낸다. 없거나 예전 배포 버전으로 만든 것이면 그때 한 번 다시 만든다 */
-async function serveHome(request: Request, env: Env) {
-  let obj = await env.BUCKET.get(HOME_KEY, { onlyIf: request.headers });
+/** 각 페이지: 미리 만들어 둔 HTML을 그대로 보낸다. 없거나 예전 배포 버전으로 만든 것이면 그때 한 번 다시 만든다 */
+async function servePage(request: Request, env: Env, page: PageKey) {
+  let obj = await env.BUCKET.get(pageKey(page), { onlyIf: request.headers });
   if (!obj || obj.customMetadata?.v !== deployVersion(env)) {
-    const html = renderHome(await readContent(env), new URL(request.url).origin);
-    await putHome(env, html);
-    obj = await env.BUCKET.get(HOME_KEY);
+    const content = await readContent(env);
+    // 영상이 없으면 영상 페이지는 메뉴에서 빠지므로 홈으로 보낸다
+    if (!visiblePages(content).some((p) => p.key === page)) return Response.redirect(new URL('/', request.url).toString(), 302);
+    const html = renderPage(content, page, new URL(request.url).origin);
+    await putPage(env, page, html);
+    obj = await env.BUCKET.get(pageKey(page));
     if (!obj) return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
   }
   const headers = new Headers({
@@ -147,7 +156,9 @@ async function handleApi(request: Request, env: Env, url: URL) {
   if (path === '/api/preview' && request.method === 'POST') {
     const content = await readBody(request);
     if (content instanceof Response) return content;
-    return new Response(renderHome(content, url.origin, { preview: true }), {
+    const want = url.searchParams.get('page') as PageKey | null;
+    const page = PAGES.some((p) => p.key === want) ? (want as PageKey) : 'home';
+    return new Response(renderPage(content, page, url.origin, { preview: true }), {
       headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
     });
   }
@@ -175,7 +186,9 @@ export default {
 
     if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
 
-    if (path === '/' || path === '/index.html') return serveHome(request, env);
+    const route = path.replace(/\/+$/, '') || '/';
+    const page = PAGES.find((p) => p.path === route || (p.key === 'home' && route === '/index.html'));
+    if (page) return servePage(request, env, page.key);
     if (path.startsWith('/media/')) return serveMedia(request, env, decodeURIComponent(path.slice(1)));
 
     return new Response('페이지를 찾을 수 없습니다.', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
